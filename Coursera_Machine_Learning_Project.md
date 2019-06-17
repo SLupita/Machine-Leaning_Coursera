@@ -260,12 +260,6 @@ accuracy <- map_df(ks, function(k){
   tibble(test = test_error)
 })
 
-# fit_knn <- train(classe~., data=training,
-                   # method = "knn",
-                   # tuneGrid = data.frame(k = seq(3, 30, 2)),
-                   # trControl = control)
-# fit_knn$final
-
 accuracy
 ```
 
@@ -345,7 +339,8 @@ conf$table
 ```
 
 ```r
-conf$overall["Accuracy"]
+acc <- conf$overall["Accuracy"]
+acc
 ```
 
 ```
@@ -353,9 +348,19 @@ conf$overall["Accuracy"]
 ## 0.9959215
 ```
 
-As we see with an accuracy of around 99%, RandomForest gives the best accuracy out of all three models. From the plot we can see that the curve converges at around number of trees = 30.
+As we see with RandomForest the accuracy is around 99.6%. We will calculate Out of sample error as follows:
+
+
+```r
+oos <- 1-sum((y_hat_rf == testing$classe)/length(y_hat_rf))
+oos <- round(oos*100, digits = 2)
+```
+
+The out-of-sample-error is 0.41%.
+RandomForest gives the best accuracy out of all three models. From the plot we can see that the curve converges at around number of trees = 30.
 
 ##Conclusion
+
 Since RandomForest model gives the best accuracy we will consider that for predicting the classe for the test data (named validation in this project).
 
 
