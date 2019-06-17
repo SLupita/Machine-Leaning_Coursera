@@ -1,0 +1,150 @@
+---
+title: "Prediction assignment"
+author: "Lupita Sahu"
+date: "13 June 2019"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, cache=TRUE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Project Introduction
+
+##Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict the manner in which they did the exercise. This is the "classe" variable in the training set. 
+More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+##Loading the libraries
+
+```{r cars, message=FALSE}
+library(tidyverse)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(randomForest)
+library(knitr)
+library(purrr)
+```
+
+##Loading the data
+
+```{r data, message=FALSE}
+##Loading training data
+dl <- tempfile()
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", dl)
+dat_train <- read.csv(dl)
+
+##Loading testing data
+dl <- tempfile()
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", dl)
+dat_validation <- read.csv(dl)
+```
+
+##Analyzing and cleaning the data
+
+```{r data_analysis}
+str(dat_train)
+
+#Calculating total number of NA values
+sum(!complete.cases(dat_train))
+```
+
+We can see that the training data set is made of 19622 observations and 160 predictors. We can notice that 19216 observations have NA values. So we will remove the columns containing more than 80% NA values.
+Also the first seven columns give irrelevant information such as people who did the test, timestamps etc. We will not take them in our model.
+
+```{r data_cleaning}
+#Removing columns 1 to 7 as they do not hold relevance to the question
+train <- dat_train[,-c(1:7)]
+validation <- dat_validation[,-c(1:7)]
+
+#Following columns contain NA's
+ind <- which(colSums(is.na(train))/nrow(train) >= 0.8)
+
+#drop variables containing NA's
+train <- train[,-ind]
+
+#We will do the same for final validation data
+validation <- validation[,-ind]
+```
+
+##Preprocessing
+Now we will remove the columns with near zero variability as they will not be very useful for our prediction.
+
+```{r data_cleaning2}
+##Identifying and eliminating the variables with near zero variation
+nzv <- nearZeroVar(train)
+train <- train[,-nzv]
+validation <- validation[,-nzv]
+```
+
+We will divide the training data set to training and testing data sets.
+
+```{r split}
+set.seed(145)
+ind_train <- createDataPartition(train$classe, p= 0.8, list=FALSE)
+training <- train[ind_train,]
+testing <- train[-ind_train,]
+```
+
+##Building the agorithms
+In the following sections, we will test 3 different models : KNN, Classification tree and Random forest
+
+```{r knn, echo=TRUE}
+##KNN
+ks <- seq(3, 150, 2)
+
+accuracy <- map_df(ks, function(k){
+  fit <- knn3(classe ~ ., data = training, k = k)
+  
+  y_hat <- predict(fit, testing, type = "class")
+  cm_test <- confusionMatrix(data = y_hat, reference = testing$classe)
+  test_error <- cm_test$overall["Accuracy"]
+  
+  tibble(test = test_error)
+})
+
+accuracy
+plot(ks, accuracy$test)
+
+kmax <- which.max(accuracy$test)
+
+```
+
+As we can see from the plot it looks like accuracy is maximum i.e. 94% at k=1, which doesn't look good. We will now fit a CART model.
+
+```{r CART}
+##FItting the CART model
+fit_cart <- rpart(classe~., training, method="class")
+y_hat_cart <- predict(fit_cart, testing, type="class")
+confusionMatrix(y_hat_cart, testing$classe)$overall["Accuracy"]
+fancyRpartPlot(fit_cart)
+```
+
+We can observe that the accuracy is only 75%, which doesn't look very good either. Let's fit a Random Forest model now.
+
+```{r randomforest}
+##Fitting a randon forest model
+fit_rf <- randomForest(classe~.,training)
+plot(fit_rf)
+
+y_hat_rf <- predict(fit_rf, newdata=testing)
+conf <- confusionMatrix(y_hat_rf,testing$classe)
+conf$table
+conf$overall["Accuracy"]
+```
+
+As we see with an accuracy of around 99%, RandomForest gives the best accuracy out of all three models. From the plot we can see that the curve converges at around number of trees = 30.
+
+##Conclusion
+Since RandomForest model gives the best accuracy we will consider that for predicting the classe for the test data (named validation in this project).
+
+```{r final, echo=TRUE, include=TRUE}
+predict(fit_rf,newdata=validation)
+```
